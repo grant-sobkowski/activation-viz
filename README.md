@@ -6,8 +6,6 @@ Simple GUI App which allows you to visualize llm queries on a small local model.
 - LLM: HuggingFaceTB/SmolLM-135M-Instruct
     - For now, the LLM used is not configurable
 
-## Demo
-
 https://github.com/user-attachments/assets/eacb7089-2e7a-42ac-abdb-674c469a28a4
 
 ## Quickstart
