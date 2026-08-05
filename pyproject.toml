@@ -1,0 +1,11 @@
+[project]
+name = "activation-viz"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "accelerate>=1.14.0",
+    "torch>=2.13.0",
+    "transformers>=5.14.1",
+]
