@@ -8,7 +8,7 @@ Simple GUI App which allows you to visualize llm queries on a small local model.
 
 ## Demo
 
-<video src="media/demo.mp4" width="100%" controls></video>
+https://github.com/user-attachments/assets/eacb7089-2e7a-42ac-abdb-674c469a28a4
 
 ## Quickstart
 
