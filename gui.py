@@ -272,66 +272,81 @@ def create_sidebar(frm: ttk.Frame, mgr: TokenManager):
     mgr.tk_forward = forward_button
     mgr.tk_backward = back_button
 
-    def run_llm():
-        input_text = llm_input.get()
-        run_button.config(state="disabled")
-
-        popup = tk.Toplevel(sidebar)
-        popup.title("Running")
-        popup.resizable(False, False)
-        popup.protocol("WM_DELETE_WINDOW", lambda: None)  # block closing mid-run
-        popup.transient(mgr.root)
-
-        ttk.Label(
-            popup,
-            text="Generating local LLM response - model: SmolLM-135M-Instruct",
-            padding=(24, 16, 24, 8),
-        ).pack()
-        progress = ttk.Progressbar(popup, mode="indeterminate", length=220)
-        progress.pack(padx=24, pady=(0, 16))
-        progress.start(10)
-
-        popup.update_idletasks()
-        x = mgr.root.winfo_rootx() + (mgr.root.winfo_width() - popup.winfo_width()) // 2
-        y = (
-            mgr.root.winfo_rooty()
-            + (mgr.root.winfo_height() - popup.winfo_height()) // 2
-        )
-        popup.geometry(f"+{x}+{y}")
-        popup.grab_set()
-
-        result: dict = {}
-
-        def worker():
-            if USE_MOCK_LLM:
-                result["tokens"] = [
-                    ProfiledToken(text, tensors) for text, tensors in TOKENS
-                ]
-            else:
-                llm = ProfiledSmolLM()
-                result["tokens"] = llm.run(input_text)
-
-        def check_done(thread: threading.Thread):
-            if thread.is_alive():
-                mgr.root.after(100, lambda: check_done(thread))
-                return
-
-            progress.stop()
-            popup.grab_release()
-            popup.destroy()
-            run_button.config(state="normal")
-            mgr.set_tokens(result["tokens"])
-
-        thread = threading.Thread(target=worker, daemon=True)
-        thread.start()
-        check_done(thread)
-
-    run_button.config(command=run_llm)
+    run_button.config(command=lambda: run_llm(sidebar, mgr, llm_input, run_button))
 
     llm_output = tk.Text(sidebar, width=30, height=16, background="#fff")
     llm_output.grid(column=0, row=2)
     llm_output.config(state=tk.DISABLED)
     mgr.tk_llm_output = llm_output
+
+
+def run_llm(
+    sidebar: ttk.Frame, mgr: TokenManager, llm_input: ttk.Entry, run_button: ttk.Button
+):
+    input_text = llm_input.get()
+    run_button.config(state="disabled")
+
+    popup = tk.Toplevel(sidebar)
+    popup.title("Running")
+    popup.resizable(False, False)
+    popup.protocol("WM_DELETE_WINDOW", lambda: None)  # block closing mid-run
+    popup.transient(mgr.root)
+
+    ttk.Label(
+        popup,
+        text="Generating local LLM response - model: SmolLM-135M-Instruct",
+        padding=(24, 16, 24, 8),
+    ).grid(row=0, column=0)
+    progress = ttk.Progressbar(popup, mode="indeterminate", length=220)
+    progress.grid(row=1, column=0, padx=24, pady=(0, 16))
+    progress.start(10)
+
+    popup.update_idletasks()  # force rerender
+
+    x = mgr.root.winfo_rootx() + (mgr.root.winfo_width() - popup.winfo_width()) // 2
+    y = mgr.root.winfo_rooty() + (mgr.root.winfo_height() - popup.winfo_height()) // 2
+    popup.geometry(f"+{x}+{y}")
+
+    # prevent interaction with main window while llm running
+    popup.grab_set()
+
+    result: dict = {}
+
+    def worker():
+        """
+        Runs LLM process in background. PyTorch computation does not
+        lock the GIL, so running this process as a seperate thread
+        serves to keep the GUI process running while waiting.
+        """
+        if USE_MOCK_LLM:
+            result["tokens"] = [
+                ProfiledToken(text, tensors) for text, tensors in TOKENS
+            ]
+        else:
+            llm = ProfiledSmolLM()
+            result["tokens"] = llm.run(input_text)
+
+    def check_done(thread: threading.Thread):
+        if thread.is_alive():
+            mgr.root.after(100, lambda: check_done(thread))
+            return
+
+        progress.stop()
+        popup.grab_release()
+        popup.destroy()
+        run_button.config(state="normal")
+        mgr.set_tokens(result["tokens"])
+
+    """
+    Note: the worker thread is daemonized to prevent zombie
+    processes sticking around if the GUI is closed mid-inference.
+    In the event of the window closing, however, the worker thread
+    will not be closed gracefully and may not properly release file locks.
+    """
+
+    thread = threading.Thread(target=worker, daemon=True)
+    thread.start()
+    check_done(thread)
 
 
 def create_display(frm: ttk.Frame, mgr: TokenManager):
