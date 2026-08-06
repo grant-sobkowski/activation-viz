@@ -195,7 +195,6 @@ def main():
     main.columnconfigure(1, weight=1)
 
     graph_config = GraphConfig(30, 32, 0.33)
-
     mgr = TokenManager(root, graph_config)
 
     create_display(main, mgr)
@@ -204,23 +203,23 @@ def main():
     main.mainloop()
 
 
-token_manager = None
-
-
 def create_sidebar(frm: ttk.Frame, mgr: TokenManager):
     sidebar_style = ttk.Style()
-    sidebar_style.configure("SideBar.TFrame", background="#ececec")
-    sidebar = ttk.Frame(frm, style="SideBar.TFrame")
-    sidebar.grid(column=0, row=0, rowspan=2, sticky="ns", padx=8, pady=(43, 8))
-
     llm_input_style_a = ttk.Style()
     llm_input_style_b = ttk.Style()
+    grey_label = ttk.Style()
+
+    sidebar_style.configure("SideBar.TFrame", background="#ececec")
     llm_input_style_a.configure(
         "InputA.TEntry", padding=(8, 8, 8, 200), foreground="grey"
     )
     llm_input_style_b.configure(
         "InputB.TEntry", padding=(8, 8, 8, 200), foreground="black"
     )
+    grey_label.configure("Grey.Label", background="#ececec")
+
+    sidebar = ttk.Frame(frm, style="SideBar.TFrame")
+    sidebar.grid(column=0, row=0, rowspan=2, sticky="ns", padx=8, pady=(43, 8))
 
     llm_input = ttk.Entry(sidebar, width=30, style="InputA.TEntry")
     llm_input.grid(column=0, row=0)
@@ -249,15 +248,8 @@ def create_sidebar(frm: ttk.Frame, mgr: TokenManager):
     run_button = ttk.Button(sidebar, text="Run", width=30)
     run_button.grid(column=0, row=1, pady=32)
 
-    output_style = ttk.Style()
-    output_style.configure("Output.TEntry", padding=(8, 8, 8, 600))
-
     playback = ttk.Frame(sidebar, style="SideBar.TFrame")
     playback.grid(column=0, row=3, padx=32)
-
-    grey_label = ttk.Style()
-    grey_label.configure("Grey.Label", background="#ececec")
-
     current_token_display = ttk.Label(
         playback, text="token 0 / 0", width=16, style="Grey.Label", anchor="center"
     )
