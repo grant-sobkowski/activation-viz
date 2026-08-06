@@ -24,11 +24,11 @@ def _make_tensors(seed: int) -> list[list[float]]:
 
 
 TOKENS: list[tuple[str, list[list[float]]]] = [
-    ("The",      _make_tensors(0)),
+    ("The", _make_tensors(0)),
     (" capital", _make_tensors(1)),
-    (" of",      _make_tensors(2)),
-    (" France",  _make_tensors(3)),
-    (" is",      _make_tensors(4)),
-    (" Paris",   _make_tensors(5)),
-    (".",        _make_tensors(6)),
+    (" of", _make_tensors(2)),
+    (" France", _make_tensors(3)),
+    (" is", _make_tensors(4)),
+    (" Paris", _make_tensors(5)),
+    (".", _make_tensors(6)),
 ]

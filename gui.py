@@ -1,13 +1,13 @@
 import itertools
 import os
-import time
 import threading
+import time
 import tkinter as tk
 from dataclasses import dataclass
 from tkinter import ttk
 
-from llm import ProfiledSmolLM, ProfiledToken, download_model
 from fixtures import TOKENS
+from llm import ProfiledSmolLM, ProfiledToken, download_model
 
 USE_MOCK_LLM = os.environ.get("USE_MOCK_LLM", "").lower() in ("1", "true", "yes")
 
@@ -27,7 +27,7 @@ class TokenManager:
     def __init__(
         self,
         root: tk.Tk,
-        graph_config: GraphConfig = GraphConfig(30, 32, 0.33),
+        graph_config: GraphConfig,
     ):
         self.root = root
         self.graph_config = graph_config
@@ -36,10 +36,13 @@ class TokenManager:
         self.is_playing = False
         self.tokens: list[ProfiledToken] = []
 
-        self.tk_graph = None
-        self.tk_token_status = None
-        self.tk_cb_activation = None
-        self.tk_llm_output = None
+        self.tk_graph: tk.Text
+        self.tk_token_status: ttk.Label
+        self.tk_cb_activation: ttk.Combobox
+        self.tk_llm_output: tk.Text
+        self.tk_toggle_play: ttk.Button
+        self.tk_forward: ttk.Button
+        self.tk_backward: ttk.Button
 
     def set_tokens(self, tokens: list[ProfiledToken]):
         assert len(tokens) > 0
@@ -53,31 +56,6 @@ class TokenManager:
 
         self.render_token()
         self.toggle_play()
-
-    def set_widgets(
-        self,
-        tk_graph: tk.Text | None = None,
-        tk_token_status: ttk.Label | None = None,
-        tk_cb_activation: ttk.Combobox | None = None,
-        tk_llm_output: tk.Text | None = None,
-        tk_toggle_play: ttk.Button | None = None,
-        tk_forward: ttk.Button | None = None,
-        tk_backward: ttk.Button | None = None,
-    ):
-        if tk_graph:
-            self.tk_graph = tk_graph
-        if tk_token_status:
-            self.tk_token_status = tk_token_status
-        if tk_cb_activation:
-            self.tk_cb_activation = tk_cb_activation
-        if tk_llm_output:
-            self.tk_llm_output = tk_llm_output
-        if tk_toggle_play:
-            self.tk_toggle_play = tk_toggle_play
-        if tk_forward:
-            self.tk_forward = tk_forward
-        if tk_backward:
-            self.tk_backward = tk_backward
 
     def next_token(self):
         if self.curr_token >= self.last_token:
@@ -98,17 +76,11 @@ class TokenManager:
 
     def render_token(self):
         if self.tk_graph is None:
-            return ValueError(
-                "set_widgets (tk_graph) must be called before using render_token"
-            )
+            return ValueError("tk_graph must be set before using render_token")
         if self.tk_llm_output is None:
-            return ValueError(
-                "set widgets (tk_llm_output) must be called before using render_token"
-            )
+            return ValueError("tk_llm_output must be set before using render_token")
         if self.tk_token_status is None:
-            return ValueError(
-                "set widgets (tk_token_status) must be called before using render_token"
-            )
+            return ValueError("tk_token_status must be set before using render_token")
 
         # Render tensors on graph
         compressed_tensors = self._compress_tensors()
@@ -152,7 +124,7 @@ class TokenManager:
         self.next_token()
         self.root.after(250, self._playback)
 
-    def _compress_tensors(self) -> list[list[int]]:
+    def _compress_tensors(self) -> list[list[float]]:
         compressed_tensors = []
 
         # Compress tensors using the mean per batch of activation weights
@@ -179,7 +151,7 @@ class TokenManager:
 
         return compressed_tensors
 
-    def _graph_weights(self, tensors: list[list[int]]) -> str:
+    def _graph_weights(self, tensors: list[list[float]]) -> str:
         """Given list of tensors matching graph dimensions, returns text of activations exceeding threshold"""
         assert len(tensors) == self.graph_config.x_size
         for tensor in tensors:
@@ -222,7 +194,9 @@ def main():
     main.columnconfigure(0, weight=0)
     main.columnconfigure(1, weight=1)
 
-    mgr = TokenManager(root)
+    graph_config = GraphConfig(30, 32, 0.33)
+
+    mgr = TokenManager(root, graph_config)
 
     create_display(main, mgr)
     create_sidebar(main, mgr)
@@ -285,7 +259,7 @@ def create_sidebar(frm: ttk.Frame, mgr: TokenManager):
     grey_label.configure("Grey.Label", background="#ececec")
 
     current_token_display = ttk.Label(
-        playback, text=f"token 0 / 0", width=16, style="Grey.Label", anchor="center"
+        playback, text="token 0 / 0", width=16, style="Grey.Label", anchor="center"
     )
     current_token_display.grid(column=1, row=0, pady=32)
 
@@ -301,12 +275,10 @@ def create_sidebar(frm: ttk.Frame, mgr: TokenManager):
     forward_button.grid(column=2, row=1, padx=16)
     forward_button.config(command=mgr.next_token)
 
-    mgr.set_widgets(
-        tk_token_status=current_token_display,
-        tk_toggle_play=play_stop_button,
-        tk_forward=forward_button,
-        tk_backward=back_button,
-    )
+    mgr.tk_token_status = current_token_display
+    mgr.tk_toggle_play = play_stop_button
+    mgr.tk_forward = forward_button
+    mgr.tk_backward = back_button
 
     def run_llm():
         input_text = llm_input.get()
@@ -367,7 +339,7 @@ def create_sidebar(frm: ttk.Frame, mgr: TokenManager):
     llm_output = tk.Text(sidebar, width=30, height=16, background="#fff")
     llm_output.grid(column=0, row=2)
     llm_output.config(state=tk.DISABLED)
-    mgr.set_widgets(tk_llm_output=llm_output)
+    mgr.tk_llm_output = llm_output
 
 
 def create_display(frm: ttk.Frame, mgr: TokenManager):
@@ -387,9 +359,9 @@ def create_display(frm: ttk.Frame, mgr: TokenManager):
         activation_f, width=5, values=["0.25", "0.33", "0.50", "0.66", "0.75"]
     )
     activation.config(state=tk.DISABLED)
-    mgr.set_widgets(tk_cb_activation=activation)
+    mgr.tk_cb_activation = activation
 
-    def cb_select(event=tk.Event()):
+    def cb_select(event: tk.Event):
         del event  # unused
         mgr.graph_config.threshold = float(activation.get())
         mgr.render_token()
@@ -445,7 +417,7 @@ def create_display(frm: ttk.Frame, mgr: TokenManager):
     weights.config(state=tk.DISABLED)
     weights.grid(column=0, row=1)
 
-    mgr.set_widgets(tk_graph=weights)
+    mgr.tk_graph = weights
 
 
 if __name__ == "__main__":

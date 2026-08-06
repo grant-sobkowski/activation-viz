@@ -9,3 +9,9 @@ dependencies = [
     "torch>=2.13.0",
     "transformers>=5.14.1",
 ]
+
+[dependency-groups]
+dev = [
+    "mypy>=2.3.0",
+    "ruff>=0.16.1",
+]

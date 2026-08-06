@@ -30,3 +30,10 @@ canned token/activation data from `fixtures.py`:
 ```sh
 USE_MOCK_LLM=1 uv run gui.py
 ```
+
+### Static Code Checks
+
+```sh
+uv run ruff format --check .
+uv run mypy .
+```
