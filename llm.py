@@ -1,5 +1,4 @@
-import json
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 
 import torch
 from huggingface_hub import snapshot_download
@@ -17,7 +16,7 @@ def download_model() -> None:
 class ProfiledToken:
     """Represents a single output token.
     Properties:
-        text: textual representation of the output token
+        text: textual representation of the output token.
         tensors: list of tensor weights as 0.00 - 1.00.
     """
 
@@ -27,7 +26,12 @@ class ProfiledToken:
 
 @dataclass
 class _LayerActivations:
-    """Layer activation data for all forward passes ran"""
+    """Layer activation data for all forward passes ran
+    Properties:
+        llm_layer: index of this object's layer.
+        tokens: hidden layer scalar activation values, per token.
+
+    """
 
     llm_layer: int
     tokens: list[list[float]]
@@ -108,9 +112,10 @@ class ProfiledSmolLM:
             f"Expected at least {num_profiled_tokens} output tokens, got: {num_tokens}"
         )
 
-        end = num_tokens - 1  # Last output token isn't profiled
+        end = num_tokens - 1  # last output token isn't profiled
         start = end - num_profiled_tokens
 
+        # replace LLM mappings for spaces and newlines
         parsed = []
         for pt in tokens[start:end]:
             pt = pt.replace("Ġ", " ").replace("Ċ", "\n")
@@ -124,14 +129,13 @@ class ProfiledSmolLM:
         num_layers = len(self.model.model.layers)
         assert num_layers == 30, f"Expected 30 layers in model, got: {num_layers}"
 
-        # Reset profiling data (or create it on first time)
+        # reset profiling data (or create it on first time)
         hooks = []
         self.layers: dict[int, _LayerActivations] = {
             i: _LayerActivations(i, []) for i in range(len(self.model.model.layers))
         }
         for i, layer in enumerate(self.model.model.layers):
             hook = layer.mlp.down_proj.register_forward_hook(self._create_layer_hook(i))
-            # store references to hooks for cleanup
             hooks.append(hook)
 
         outputs: torch.Tensor = self.model.generate(**input_tokens, max_new_tokens=300)  # pyright: ignore
@@ -139,21 +143,8 @@ class ProfiledSmolLM:
         assert len(outputs) == 1
         assert isinstance(outputs[0], torch.Tensor)
 
-        # Cleanup profiling hooks
+        # cleanup profiling hooks to save memory
         for hook in hooks:
             hook.remove()
 
         return outputs[0]
-
-
-def main() -> None:
-    """Run the model once on a sample prompt and print the first few profiled tokens."""
-    input_text = "What is the capital of France?"
-    model = ProfiledSmolLM()
-    output_tokens: list[ProfiledToken] = model.run(input_text)
-
-    from pprint import pprint
-
-    pprint(output_tokens[0:3], depth=2)
-
-    main()
