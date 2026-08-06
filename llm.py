@@ -1,8 +1,9 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import torch
 from huggingface_hub import snapshot_download
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BatchEncoding
 
 MODEL_ID = "HuggingFaceTB/SmolLM-135M-Instruct"
 
@@ -38,7 +39,7 @@ class _LayerActivations:
 
 
 class ProfiledSmolLM:
-    def __init__(self):
+    def __init__(self) -> None:
         """Load the SmolLM model and tokenizer from the local Hugging Face cache."""
         self.model = AutoModelForCausalLM.from_pretrained(
             MODEL_ID, device_map="auto", local_files_only=True
@@ -65,10 +66,12 @@ class ProfiledSmolLM:
 
         return profiled_tokens
 
-    def _create_layer_hook(self, layer: int):
+    def _create_layer_hook(
+        self, layer: int
+    ) -> Callable[[torch.nn.Module, tuple, torch.Tensor], None]:
         """Build a forward hook that records the given layer's normalized activations."""
 
-        def hook(_module, _input, output):
+        def hook(_module: torch.nn.Module, _input: tuple, output: torch.Tensor) -> None:
             """Record the layer's normalized output activations for a single generated token."""
             del _module, _input  # unused
 
@@ -81,7 +84,7 @@ class ProfiledSmolLM:
 
         return hook
 
-    def _format_input(self, input_text: str):
+    def _format_input(self, input_text: str) -> BatchEncoding:
         """Build the chat-templated, tokenized model input for input_text."""
         prompt = [
             {
@@ -90,17 +93,20 @@ class ProfiledSmolLM:
             },
             {"role": "user", "content": input_text},
         ]
-        return self.tokenizer.apply_chat_template(
+        encoding = self.tokenizer.apply_chat_template(
             prompt,
             add_generation_prompt=True,
             return_tensors="pt",
             return_dict=True,
-        ).to(self.model.device)
+        )
+        assert isinstance(encoding, BatchEncoding)
+        return encoding.to(self.model.device)
 
     def _parse_output_tokens(self, model_output: torch.Tensor) -> list[str]:
         """Decode the generated output tensor into the text tokens that were profiled."""
-        tokens = self.tokenizer.convert_ids_to_tokens(
-            model_output, skip_special_tokens=True
+        tokens = self.tokenizer.convert_ids_to_tokens(  # type: ignore[call-overload]
+            model_output,
+            skip_special_tokens=True,  # type: ignore[arg-type]
         )
         assert isinstance(tokens, list)
         assert all(isinstance(token, str) for token in tokens)
@@ -122,7 +128,9 @@ class ProfiledSmolLM:
             parsed.append(pt)
         return parsed
 
-    def _generate(self, input_tokens, max_new_tokens=300) -> torch.Tensor:
+    def _generate(
+        self, input_tokens: BatchEncoding, max_new_tokens: int = 300
+    ) -> torch.Tensor:
         """Run generation with per-layer activation hooks attached, then remove the hooks."""
 
         # GUI activation display not dynamic, model must have 30 layers
@@ -138,7 +146,7 @@ class ProfiledSmolLM:
             hook = layer.mlp.down_proj.register_forward_hook(self._create_layer_hook(i))
             hooks.append(hook)
 
-        outputs: torch.Tensor = self.model.generate(**input_tokens, max_new_tokens=300)  # pyright: ignore
+        outputs: torch.Tensor = self.model.generate(**input_tokens, max_new_tokens=300)  # type: ignore[misc,assignment]  # pyright: ignore
         assert isinstance(outputs, torch.Tensor)
         assert len(outputs) == 1
         assert isinstance(outputs[0], torch.Tensor)
