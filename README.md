@@ -21,3 +21,12 @@ are downloaded from HuggingFace. All model files are cached for subsequent runs.
 uv sync
 uv run gui.py
 ```
+
+## Development
+
+Set `USE_MOCK_LLM=1` to skip downloading/running the local LLM and instead use
+canned token/activation data from `fixtures.py`:
+
+```sh
+USE_MOCK_LLM=1 uv run gui.py
+```

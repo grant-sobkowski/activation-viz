@@ -1,4 +1,5 @@
 import itertools
+import os
 import time
 import threading
 import tkinter as tk
@@ -6,7 +7,9 @@ from dataclasses import dataclass
 from tkinter import ttk
 
 from llm import ProfiledSmolLM, ProfiledToken, download_model
-from test_fixtures import TOKENS
+from fixtures import TOKENS
+
+USE_MOCK_LLM = os.environ.get("USE_MOCK_LLM", "").lower() in ("1", "true", "yes")
 
 
 @dataclass
@@ -208,10 +211,10 @@ class TokenManager:
 
 
 def main():
-    print("Fetching model...")
-    download_model()
-
-    time.sleep(2)
+    if not USE_MOCK_LLM:
+        print("Fetching model...")
+        download_model()
+        time.sleep(2)
 
     root = tk.Tk()
     main = ttk.Frame(root, padding=10)
@@ -336,8 +339,13 @@ def create_sidebar(frm: ttk.Frame, mgr: TokenManager):
         result: dict = {}
 
         def worker():
-            llm = ProfiledSmolLM()
-            result["tokens"] = llm.run(input_text)
+            if USE_MOCK_LLM:
+                result["tokens"] = [
+                    ProfiledToken(text, tensors) for text, tensors in TOKENS
+                ]
+            else:
+                llm = ProfiledSmolLM()
+                result["tokens"] = llm.run(input_text)
 
         def check_done(thread: threading.Thread):
             if thread.is_alive():
