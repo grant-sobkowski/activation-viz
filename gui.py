@@ -29,6 +29,7 @@ class TokenManager:
         root: tk.Tk,
         graph_config: GraphConfig,
     ):
+        """Initialize GUI state for the given Tk root and graph configuration."""
         self.root = root
         self.graph_config = graph_config
         self.curr_token: int = 0
@@ -45,6 +46,7 @@ class TokenManager:
         self.tk_backward: ttk.Button
 
     def set_tokens(self, tokens: list[ProfiledToken]):
+        """Load a new list of tokens and start playback from the first token."""
         assert len(tokens) > 0
         assert self.tk_cb_activation
 
@@ -58,6 +60,7 @@ class TokenManager:
         self.toggle_play()
 
     def next_token(self):
+        """Advance to and render the next token, if one exists."""
         if self.curr_token >= self.last_token:
             return
 
@@ -69,12 +72,14 @@ class TokenManager:
         self.render_token()
 
     def prior_token(self):
+        """Step back to and render the previous token, if one exists."""
         if self.curr_token > 0:
             self.curr_token -= 1
 
         self.render_token()
 
     def render_token(self):
+        """Render the current token's activation graph, output text, and status label."""
         if self.tk_graph is None:
             return ValueError("tk_graph must be set before using render_token")
         if self.tk_llm_output is None:
@@ -102,6 +107,7 @@ class TokenManager:
         self.tk_token_status.config(text=f"token {self.curr_token} / {self.last_token}")
 
     def toggle_play(self):
+        """Toggle between playing and paused playback state."""
         if self.is_playing:
             # Switch state to paused
             self.is_playing = False
@@ -118,6 +124,7 @@ class TokenManager:
         self.root.after(500, self._playback)
 
     def _playback(self):
+        """Advance playback one token at a time on a timer, while playing."""
         if self.is_playing is False:
             return
 
@@ -125,6 +132,7 @@ class TokenManager:
         self.root.after(250, self._playback)
 
     def _compress_tensors(self) -> list[list[float]]:
+        """Downsample the current token's tensors to fit the graph's y_size dimension."""
         compressed_tensors = []
 
         # Compress tensors using the mean per batch of activation weights
@@ -183,6 +191,7 @@ class TokenManager:
 
 
 def main():
+    """Build and run the activation-viz Tk application."""
     if not USE_MOCK_LLM:
         print("Fetching model...")
         download_model()
@@ -204,6 +213,7 @@ def main():
 
 
 def create_sidebar(frm: ttk.Frame, mgr: TokenManager):
+    """Build the sidebar: LLM input, run button, output box, and playback controls."""
     sidebar_style = ttk.Style()
     llm_input_style_a = ttk.Style()
     llm_input_style_b = ttk.Style()
@@ -227,6 +237,7 @@ def create_sidebar(frm: ttk.Frame, mgr: TokenManager):
     llm_input.insert(0, llm_input_placeholder)
 
     def input_focus_in(event):
+        """Clear the placeholder text when the input gains focus."""
         del event  # unused
         # check for current style to prevent deleting input when user enters placeholder verbatim
         if (
@@ -237,6 +248,7 @@ def create_sidebar(frm: ttk.Frame, mgr: TokenManager):
             llm_input.config(style="InputB.TEntry")
 
     def input_focus_out(event):
+        """Restore the placeholder text if the input is left empty."""
         del event  # unused
         if llm_input.get() == "":
             llm_input.insert(0, llm_input_placeholder)
@@ -283,6 +295,7 @@ def create_sidebar(frm: ttk.Frame, mgr: TokenManager):
 def run_llm(
     sidebar: ttk.Frame, mgr: TokenManager, llm_input: ttk.Entry, run_button: ttk.Button
 ):
+    """Run the LLM on the current input text in a background thread, showing a progress popup."""
     input_text = llm_input.get()
     run_button.config(state="disabled")
 
@@ -327,6 +340,7 @@ def run_llm(
             result["tokens"] = llm.run(input_text)
 
     def check_done(thread: threading.Thread):
+        """Poll the worker thread and, once finished, close the popup and load its results."""
         if thread.is_alive():
             mgr.root.after(100, lambda: check_done(thread))
             return
@@ -350,6 +364,7 @@ def run_llm(
 
 
 def create_display(frm: ttk.Frame, mgr: TokenManager):
+    """Build the main display: activation graph and threshold selector."""
 
     display = ttk.Frame(frm)
     display.grid(column=1, row=0, sticky="nsew")
@@ -369,6 +384,7 @@ def create_display(frm: ttk.Frame, mgr: TokenManager):
     mgr.tk_cb_activation = activation
 
     def cb_select(event: tk.Event):
+        """Update the graph's activation threshold when a new value is selected."""
         del event  # unused
         mgr.graph_config.threshold = float(activation.get())
         mgr.render_token()
